@@ -8,18 +8,43 @@ Local text-to-speech server using Speaches with GPU acceleration.
 - May work via CUDA 12.x PTX compatibility
 - CPU fallback supported
 
-## Quick Start
+## Docker Setup
+
+### Prerequisites
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed
+- NVIDIA GPU (for GPU mode): Install [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)
 
 ### GPU Mode
 ```bash
-export COMPOSE_FILE=compose.yaml:compose.cuda.yaml
+# Clone the repo
+git clone https://github.com/Holuwashina/whisper-gpu.git
+cd whisper-gpu
+
+# Start with GPU support
+$env:COMPOSE_FILE = "compose.yaml:compose.cuda.yaml"  # PowerShell
+# OR
+export COMPOSE_FILE=compose.yaml:compose.cuda.yaml   # Bash
+
 docker compose up --detach
 ```
 
 ### CPU Mode
 ```bash
+# PowerShell
+$env:COMPOSE_FILE = "compose.yaml:compose.cpu.yaml"
+docker compose up --detach
+
+# Bash
 export COMPOSE_FILE=compose.yaml:compose.cpu.yaml
 docker compose up --detach
+```
+
+### Verify Running
+```bash
+docker ps
+# Should show: speaches container running on port 8000
+
+curl http://localhost:8000/health
 ```
 
 ## Download TTS Model
@@ -40,41 +65,19 @@ uvx speaches-cli model ls --task text-to-speech | jq '.data | map(select(.id == 
 ## Test TTS (cURL)
 
 ```bash
-export SPEACHES_BASE_URL="http://localhost:8000"
-export SPEECH_MODEL_ID="speaches-ai/Kokoro-82M-v1.0-ONNX"
-export VOICE_ID="af_heart"
+$env:SPEACHES_BASE_URL = "http://localhost:8000"
+$env:SPEECH_MODEL_ID = "speaches-ai/Kokoro-82M-v1.0-ONNX"
+$env:VOICE_ID = "af_heart"
 
 # Generate speech (MP3)
-curl "$SPEACHES_BASE_URL/v1/audio/speech" \
-  -s -H "Content-Type: application/json" \
-  --output audio.mp3 \
-  --data-raw "{
-    \"input\": \"Hello World!\",
-    \"model\": \"$SPEECH_MODEL_ID\",
-    \"voice\": \"$VOICE_ID\"
-  }"
-
-# Generate speech (WAV)
-curl "$SPEACHES_BASE_URL/v1/audio/speech" \
-  -s -H "Content-Type: application/json" \
-  --output audio.wav \
-  --data-raw "{
-    \"input\": \"Hello World!\",
-    \"model\": \"$SPEECH_MODEL_ID\",
-    \"voice\": \"$VOICE_ID\",
-    \"response_format\": \"wav\"
-  }"
-
-# Generate with speed
-curl "$SPEACHES_BASE_URL/v1/audio/speech" \
-  -s -H "Content-Type: application/json" \
-  --output audio.mp3 \
-  --data-raw "{
-    \"input\": \"Hello World!\",
-    \"model\": \"$SPEECH_MODEL_ID\",
-    \"voice\": \"$VOICE_ID\",
-    \"speed\": 2.0
-  }"
+curl "$env:SPEACHES_BASE_URL/v1/audio/speech" `
+  -s -H "Content-Type: application/json" `
+  --output audio.mp3 `
+  --data-raw '{
+    "input": "Hello World!",
+    "model": "'$env:SPEECH_MODEL_ID'",
+    "voice": "'$env:VOICE_ID'"
+  }'
 ```
 
 ## Test TTS (Python)
@@ -102,28 +105,6 @@ with Path("output.mp3").open("wb") as f:
     f.write(res.read())
 ```
 
-## Test TTS (OpenAI SDK)
-
-```python
-from pathlib import Path
-from openai import OpenAI
-
-openai = OpenAI(base_url="http://localhost:8000/v1", api_key="cant-be-empty")
-model_id = "speaches-ai/Kokoro-82M-v1.0-ONNX"
-voice_id = "af_heart"
-
-res = openai.audio.speech.create(
-    model=model_id,
-    voice=voice_id,
-    input="Hello, world!",
-    response_format="mp3",
-    speed=1,
-)
-
-with Path("output.mp3").open("wb") as f:
-    f.write(res.response.read())
-```
-
 ## Configuration
 
 Environment variables can be set in a `.env` file:
@@ -134,6 +115,22 @@ PORT=8000
 ENABLE_UI=true
 ```
 
+## Common Commands
+
+```bash
+# View logs
+docker compose logs -f speaches
+
+# Stop container
+docker compose down
+
+# Restart container
+docker compose restart
+
+# Pull latest image
+docker compose pull
+```
+
 ## Troubleshooting
 
 If GPU mode fails with CUDA errors, use CPU mode - ONNX inference runs well on CPU.
@@ -141,4 +138,9 @@ If GPU mode fails with CUDA errors, use CPU mode - ONNX inference runs well on C
 Check container logs:
 ```bash
 docker compose logs -f speaches
+```
+
+Verify GPU is available to Docker:
+```bash
+docker run --rm --gpus all nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04 nvidia-sme
 ```
