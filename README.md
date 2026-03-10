@@ -6,15 +6,15 @@ Local text-to-speech server using Speaches with GPU acceleration.
 
 - **NVIDIA Quadro M1000M** (2GB VRAM) - Maxwell architecture
 - May work via CUDA 12.x PTX compatibility
-- CPU fallback supported
+- CPU fallback supported if GPU fails
 
 ## Docker Setup
 
 ### Prerequisites
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed
-- NVIDIA GPU (for GPU mode): Install [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)
+- [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) installed
 
-### GPU Mode
+### Start GPU Server
 ```bash
 # Clone the repo
 git clone https://github.com/Holuwashina/whisper-gpu.git
@@ -22,20 +22,6 @@ cd whisper-gpu
 
 # Start with GPU support
 $env:COMPOSE_FILE = "compose.yaml:compose.cuda.yaml"  # PowerShell
-# OR
-export COMPOSE_FILE=compose.yaml:compose.cuda.yaml   # Bash
-
-docker compose up --detach
-```
-
-### CPU Mode
-```bash
-# PowerShell
-$env:COMPOSE_FILE = "compose.yaml:compose.cpu.yaml"
-docker compose up --detach
-
-# Bash
-export COMPOSE_FILE=compose.yaml:compose.cpu.yaml
 docker compose up --detach
 ```
 
@@ -50,16 +36,10 @@ curl http://localhost:8000/health
 ## Download TTS Model
 
 ```bash
-export SPEACHES_BASE_URL="http://localhost:8000"
-
-# List available TTS models
-uvx speaches-cli registry ls --task text-to-speech | jq '.data | [].id'
+$env:SPEACHES_BASE_URL = "http://localhost:8000"
 
 # Download a TTS model
 uvx speaches-cli model download speaches-ai/Kokoro-82M-v1.0-ONNX
-
-# Verify model is installed
-uvx speaches-cli model ls --task text-to-speech | jq '.data | map(select(.id == "speaches-ai/Kokoro-82M-v1.0-ONNX"))'
 ```
 
 ## Test TTS (cURL)
@@ -69,7 +49,7 @@ $env:SPEACHES_BASE_URL = "http://localhost:8000"
 $env:SPEECH_MODEL_ID = "speaches-ai/Kokoro-82M-v1.0-ONNX"
 $env:VOICE_ID = "af_heart"
 
-# Generate speech (MP3)
+# Generate speech
 curl "$env:SPEACHES_BASE_URL/v1/audio/speech" `
   -s -H "Content-Type: application/json" `
   --output audio.mp3 `
@@ -97,22 +77,11 @@ res = client.post(
         "voice": voice_id,
         "input": "Hello, world!",
         "response_format": "mp3",
-        "speed": 1,
     },
 ).raise_for_status()
 
 with Path("output.mp3").open("wb") as f:
     f.write(res.read())
-```
-
-## Configuration
-
-Environment variables can be set in a `.env` file:
-
-```env
-LOG_LEVEL=debug
-PORT=8000
-ENABLE_UI=true
 ```
 
 ## Common Commands
@@ -133,14 +102,8 @@ docker compose pull
 
 ## Troubleshooting
 
-If GPU mode fails with CUDA errors, use CPU mode - ONNX inference runs well on CPU.
+If GPU mode fails with CUDA errors, verify NVIDIA Container Toolkit is installed:
 
-Check container logs:
-```bash
-docker compose logs -f speaches
-```
-
-Verify GPU is available to Docker:
 ```bash
 docker run --rm --gpus all nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04 nvidia-sme
 ```
